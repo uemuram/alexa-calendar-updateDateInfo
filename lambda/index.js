@@ -9,36 +9,47 @@ exports.handler = async (event) => {
     const ssm = new AWS.SSM();
     const request = { Name: ssmKey, WithDecryption: true };
     const ssmResponse = await ssm.getParameter(request).promise();
-    const s3parentPath = ssmResponse.Parameter.Value;
-    console.log(ssmKey + ' : ' + s3parentPath + '(SSMから取得)');
+    const dateInfoPath = ssmResponse.Parameter.Value;
+    console.log(ssmKey + ' : ' + dateInfoPath + '(SSMから取得)');
+
+    const match = dateInfoPath.match(/^s3:\/\/([^/]+)\/(.+)$/);
+    const bucket = match[1];
+    const key = match[2] + 'publicHolidays/';
+    console.log("祝日保存バケット : " + bucket + ' , キー : ' + key);
+
+    // s3クライアント準備
+    const s3 = new AWS.S3();
 
     // リクエスト実行(今年分 & 来年分)
     let currentYear = new Date().getFullYear();
+    let params = {};
+    let url, holidaysResponse;
     for (let year = currentYear; year <= currentYear + 1; year++) {
         try {
             // URL設定
-            let url = `https://holidays-jp.github.io/api/v1/${year}/date.json`
+            url = `https://holidays-jp.github.io/api/v1/${year}/date.json`
             console.log("URL : " + url);
             // リクエスト実行
-            const response = await Axios.get(url);
-            console.log(`レスポンス: "${JSON.stringify(response.data)}"`);
-
-            // // s3に配置
-            // const s3 = new AWS.S3();
-            // const response = await s3.getObject({ Bucket: bucket, Key: key }).promise();
-            // publicHolidays = JSON.parse(response.Body.toString('utf-8'));
-            // console.log(publicHolidaysKey + ' : ' + JSON.stringify(publicHolidays) + '(s3から取得)');
-
-
-
-
+            holidaysResponse = await Axios.get(url);
+            console.log(`祝日取得レスポンス: "${JSON.stringify(holidaysResponse.data)}"`);
         } catch (error) {
-            throw new Error(`http get error: ${error}`);
+            throw new Error(`get holidayInfo error , url:${url} , error:${error}`);
+        }
+
+        try {
+            // s3に配置
+            params = {
+                Bucket: bucket,
+                Key: key + year + '.json',
+                Body: JSON.stringify(holidaysResponse.data)
+            };
+            const uploadResponse = await s3.putObject(params).promise();
+            console.log(`s3配置レスポンス: "${JSON.stringify(uploadResponse)}"`);
+        } catch (error) {
+            throw new Error(`put s3 error , param:${JSON.stringify(params)} , error:${error}`);
         }
     }
 
-
-    // TODO implement
     const response = {
         statusCode: 200,
         body: JSON.stringify('finish'),
