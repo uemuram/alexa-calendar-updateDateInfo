@@ -28,10 +28,10 @@ exports.handler = async (event) => {
         try {
             // URL設定
             url = `https://holidays-jp.github.io/api/v1/${year}/date.json`
-            console.log("URL : " + url);
+            console.log("祝日取得URL : " + url);
             // リクエスト実行
             holidaysResponse = await Axios.get(url);
-            console.log(`祝日取得レスポンス: "${JSON.stringify(holidaysResponse.data)}"`);
+            console.log(`祝日取得レスポンス: ${JSON.stringify(holidaysResponse.data)}`);
         } catch (error) {
             throw new Error(`get holidayInfo error , url:${url} , error:${error}`);
         }
@@ -43,8 +43,9 @@ exports.handler = async (event) => {
                 Key: key + year + '.json',
                 Body: JSON.stringify(holidaysResponse.data)
             };
+            console.log(`s3配置先: s3://${bucket}${key}${year}.json`);
             const uploadResponse = await s3.putObject(params).promise();
-            console.log(`s3配置レスポンス: "${JSON.stringify(uploadResponse)}"`);
+            console.log(`s3配置レスポンス: ${JSON.stringify(uploadResponse)}`);
         } catch (error) {
             throw new Error(`put s3 error , param:${JSON.stringify(params)} , error:${error}`);
         }
